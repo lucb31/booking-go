@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"html/template"
 	"net/http"
 )
 
@@ -16,25 +15,29 @@ type TodoPageData struct {
 	Todos     []Todo
 }
 
-func main() {
-	tmpl := template.Must(template.ParseFiles("index.html"))
-	data := TodoPageData{
+func initData() TodoPageData {
+	return TodoPageData{
 		PageTitle: "My list",
 		Todos: []Todo{
 			{Title: "Task 1", Done: false},
 			{Title: "Task 2", Done: false},
 			{Title: "Task 3", Done: true},
 		}}
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl.Execute(w, data)
-	})
-	http.HandleFunc("/todos", func(w http.ResponseWriter, r *http.Request) {
-		data.Todos = append(data.Todos, Todo{Title: "just another! ONE MORE", Done: false})
-		tmpl.ExecuteTemplate(w, "todos", data)
-	})
-	http.ListenAndServe(":8000", nil)
-	return
+}
+func main() {
+	data := initData()
+
 	r := gin.Default()
+	r.LoadHTMLGlob("templates/*")
+	r.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", data)
+	})
+	r.GET("/todos", func(c *gin.Context) {
+		// Add a todo to demonstrate data change
+		data.Todos = append(data.Todos, Todo{Title: "just another! ONE MORE", Done: false})
+		// Render 'todos' template block
+		c.HTML(http.StatusOK, "todos", data)
+	})
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
