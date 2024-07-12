@@ -2,28 +2,15 @@ package main
 
 import (
 	"log"
-	"math/rand/v2"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"lucb31/booking-go/booking"
 )
 
-type Todo struct {
-	Title string
-	Done  bool
-}
-
-type TodoPageData struct {
-	PageTitle string
-	Todos     []Todo
-	Rooms     []Room
-}
-
-type Room struct {
-	Id    int
-	Title string
+type RoomPageData struct {
+	Rooms []booking.Room
 }
 
 type LoginResponse struct {
@@ -31,25 +18,9 @@ type LoginResponse struct {
 	ErrorMessage string
 }
 
-func initData() TodoPageData {
-	return TodoPageData{
-		PageTitle: "My list",
-		Todos: []Todo{
-			{Title: "Task 1", Done: false},
-			{Title: "Task 2", Done: false},
-			{Title: "Task 3", Done: true},
-		},
-		Rooms: []Room{
-			{Id: 1, Title: "Room A"},
-			{Id: 2, Title: "Room B"},
-			{Id: 3, Title: "Room C"},
-		}}
-}
-
 func main() {
 	// Setup logger
 	logger := log.Default()
-	data := initData()
 
 	// Initialize router
 	r := gin.Default()
@@ -85,17 +56,12 @@ func main() {
 	authenticated.Use(AuthMiddleware())
 	{
 		authenticated.GET("/", func(c *gin.Context) {
+			data := RoomPageData{booking.Rooms}
 			c.HTML(http.StatusOK, "index.html", data)
 		})
 		authenticated.GET("/logout", func(c *gin.Context) {
 			c.SetCookie("Jwt-Token", "", 0, "", "localhost", true, true)
 			c.Redirect(http.StatusFound, "/login")
-		})
-		authenticated.GET("/todos", func(c *gin.Context) {
-			// Add a todo to demonstrate data change
-			data.Todos = append(data.Todos, Todo{Title: "just another! ONE MORE", Done: false})
-			// Render 'todos' template block
-			c.HTML(http.StatusOK, "todos", data)
 		})
 
 		roomEndpoints := authenticated.Group("/rooms")
@@ -107,14 +73,13 @@ func main() {
 					c.HTML(http.StatusBadRequest, "", "")
 					return
 				}
-				idx := slices.IndexFunc(data.Rooms, func(room Room) bool { return room.Id == idParam })
-				if idx == -1 {
+				err = booking.RemoveById(idParam)
+				if err != nil {
 					c.HTML(http.StatusBadRequest, "", "")
 					return
 				}
-				logger.Print("Trying to remove el", idx)
-				// Remove element by index
-				data.Rooms = append(data.Rooms[:idx], data.Rooms[idx+1:]...)
+
+				data := RoomPageData{booking.Rooms}
 				c.HTML(http.StatusOK, "rooms", data)
 			})
 
@@ -126,7 +91,13 @@ func main() {
 					logger.Print("Title cannot be empty")
 					return
 				}
-				data.Rooms = append(data.Rooms, Room{rand.Int(), title})
+				_, err := booking.Add(title)
+				if err != nil {
+					c.HTML(http.StatusBadRequest, "", "")
+					logger.Print("Unable to create room: ", err)
+					return
+				}
+				data := RoomPageData{booking.Rooms}
 				c.HTML(http.StatusOK, "rooms", data)
 			})
 		}

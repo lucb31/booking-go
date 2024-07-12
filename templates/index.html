@@ -11,18 +11,6 @@
 </head>
 
 <body>
-  <h1>{{.PageTitle}}</h1>
-  <div id="todos">
-    {{ block "todos" . }}
-    <ul>
-      {{ range .Todos }}
-      <li>{{ .Title }}</li>
-      {{ end }}
-    </ul>
-    {{ end }}
-  </div>
-  <button hx-get="/todos" hx-target="#todos">Add</button>
-  <hr />
   <h1>Rooms</h1>
   <div id="rooms">
     {{ block "rooms" . }}
