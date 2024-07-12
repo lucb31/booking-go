@@ -2,8 +2,11 @@ package main
 
 import (
 	"errors"
+	"log"
+	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -60,4 +63,19 @@ func VerifyJWT(tokenString string) (*jwt.Token, error) {
 		return nil, err
 	}
 	return token, nil
+}
+
+// Middleware to redirect to /login page if Jwt-Token provided is not valid
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jwt, err := c.Cookie("Jwt-Token")
+		if err != nil {
+			c.Redirect(http.StatusFound, "/login")
+		}
+		token, err := VerifyJWT(jwt)
+		if err != nil {
+			c.Redirect(http.StatusFound, "/login")
+		}
+		c.Set("token", token)
+	}
 }

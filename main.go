@@ -37,30 +37,13 @@ func main() {
 	logger := log.Default()
 	data := initData()
 
+	// Initialize router
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
-	r.GET("/", func(c *gin.Context) {
-		jwt, err := c.Cookie("Jwt-Token")
-		if err != nil {
-			c.Redirect(http.StatusFound, "/login")
-			// c.HTML(http.StatusUnauthorized, "login.html", LoginResponse{jwt, err.Error()})
-			return
-		}
-		token, err := VerifyJWT(jwt)
-		if err != nil {
-			//c.HTML(http.StatusUnauthorized, "login.html", LoginResponse{jwt, err.Error()})
-			c.Redirect(http.StatusFound, "/login")
-			return
-		}
-		logger.Print("Authorized request to index", token)
-		c.HTML(http.StatusOK, "index.html", data)
-	})
+
+	// Unauthorized routes
 	r.GET("/login", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "login.html", LoginResponse{"", ""})
-	})
-	r.GET("/logout", func(c *gin.Context) {
-		c.SetCookie("Jwt-Token", "", 0, "", "localhost", true, true)
-		c.Redirect(http.StatusFound, "/login")
 	})
 	r.POST("/login", func(c *gin.Context) {
 		username := c.Request.FormValue("username")
@@ -78,15 +61,28 @@ func main() {
 		c.SetCookie("Jwt-Token", jwt, 86400, "", "localhost", true, true)
 		c.Redirect(http.StatusFound, "/")
 	})
-	r.GET("/todos", func(c *gin.Context) {
-		// Add a todo to demonstrate data change
-		data.Todos = append(data.Todos, Todo{Title: "just another! ONE MORE", Done: false})
-		// Render 'todos' template block
-		c.HTML(http.StatusOK, "todos", data)
-	})
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
+
+	// Authorized routes
+	authenticated := r.Group("/")
+	authenticated.Use(AuthMiddleware())
+	{
+		authenticated.GET("/", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "index.html", data)
+		})
+		authenticated.GET("/logout", func(c *gin.Context) {
+			c.SetCookie("Jwt-Token", "", 0, "", "localhost", true, true)
+			c.Redirect(http.StatusFound, "/login")
+		})
+		authenticated.GET("/todos", func(c *gin.Context) {
+			// Add a todo to demonstrate data change
+			data.Todos = append(data.Todos, Todo{Title: "just another! ONE MORE", Done: false})
+			// Render 'todos' template block
+			c.HTML(http.StatusOK, "todos", data)
+		})
+	}
 
 	r.Run("0.0.0.0:8000")
 }
