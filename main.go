@@ -2,7 +2,10 @@ package main
 
 import (
 	"log"
+	"math/rand/v2"
 	"net/http"
+	"slices"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +18,12 @@ type Todo struct {
 type TodoPageData struct {
 	PageTitle string
 	Todos     []Todo
+	Rooms     []Room
+}
+
+type Room struct {
+	Id    int
+	Title string
 }
 
 type LoginResponse struct {
@@ -29,6 +38,11 @@ func initData() TodoPageData {
 			{Title: "Task 1", Done: false},
 			{Title: "Task 2", Done: false},
 			{Title: "Task 3", Done: true},
+		},
+		Rooms: []Room{
+			{Id: 1, Title: "Room A"},
+			{Id: 2, Title: "Room B"},
+			{Id: 3, Title: "Room C"},
 		}}
 }
 
@@ -40,6 +54,7 @@ func main() {
 	// Initialize router
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
+	r.Static("/assets", "./assets/")
 
 	// Unauthorized routes
 	r.GET("/login", func(c *gin.Context) {
@@ -82,6 +97,39 @@ func main() {
 			// Render 'todos' template block
 			c.HTML(http.StatusOK, "todos", data)
 		})
+
+		roomEndpoints := authenticated.Group("/rooms")
+		{
+			// DELETE room by ID
+			roomEndpoints.DELETE("/:id", func(c *gin.Context) {
+				idParam, err := strconv.Atoi(c.Param("id"))
+				if err != nil {
+					c.HTML(http.StatusBadRequest, "", "")
+					return
+				}
+				idx := slices.IndexFunc(data.Rooms, func(room Room) bool { return room.Id == idParam })
+				if idx == -1 {
+					c.HTML(http.StatusBadRequest, "", "")
+					return
+				}
+				logger.Print("Trying to remove el", idx)
+				// Remove element by index
+				data.Rooms = append(data.Rooms[:idx], data.Rooms[idx+1:]...)
+				c.HTML(http.StatusOK, "rooms", data)
+			})
+
+			// ADD room with title
+			roomEndpoints.POST("/", func(c *gin.Context) {
+				title, exists := c.GetPostForm("title")
+				if !exists {
+					c.HTML(http.StatusBadRequest, "", "")
+					logger.Print("Title cannot be empty")
+					return
+				}
+				data.Rooms = append(data.Rooms, Room{rand.Int(), title})
+				c.HTML(http.StatusOK, "rooms", data)
+			})
+		}
 	}
 
 	r.Run("0.0.0.0:8000")

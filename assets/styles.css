@@ -1,0 +1,18 @@
+
+    .form-login {
+      max-width: 30vw;
+      padding: 1rem;
+    }
+
+    .form-wrapper {
+      width: 30vw;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid grey;
+      padding: 8px;
+    }
+
+    .form-field input {
+      width: 200px;
+      margin: 8px;
+    }

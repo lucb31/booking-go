@@ -21,8 +21,10 @@
     </ul>
     {{ end }}
   </div>
+  <button hx-get="/todos" hx-target="#todos">Add</button>
+  <hr />
+  <h1>Rooms</h1>
   <div id="rooms">
-    <h1>Rooms</h1>
     {{ block "rooms" . }}
     <ul>
       {{ range .Rooms }}
@@ -33,11 +35,17 @@
   </div>
   <div>
     <h2>Add room</h2>
-    <form>
-      <div>coming soon</div>
+    <form hx-post="/rooms" hx-target="#rooms">
+      <div class="form-wrapper">
+        <div class="form-field">
+          <label>Title</label>
+          <input name="title" />
+        </div>
+        <button type="submit">Add</button>
+      </div>
     </form>
   </div>
-  <button hx-get="/todos" hx-target="#todos">Add</button>
+  <hr />
   <a href="/logout"><button>Logout</button></a>
 
 </body>
