@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HTMX Playground</title>
+  <title>Manage rooms</title>
   <script src="https://unpkg.com/htmx.org@2.0.0"
     integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
     crossorigin="anonymous"></script>
@@ -20,6 +20,22 @@
       {{ end }}
     </ul>
     {{ end }}
+  </div>
+  <div id="rooms">
+    <h1>Rooms</h1>
+    {{ block "rooms" . }}
+    <ul>
+      {{ range .Rooms }}
+      <li><span>{{ .Title }}</span><button hx-delete="/rooms/{{ .Id }}" hx-target="#rooms">Delete</button></li>
+      {{ end }}
+    </ul>
+    {{ end }}
+  </div>
+  <div>
+    <h2>Add room</h2>
+    <form>
+      <div>coming soon</div>
+    </form>
   </div>
   <button hx-get="/todos" hx-target="#todos">Add</button>
   <a href="/logout"><button>Logout</button></a>
