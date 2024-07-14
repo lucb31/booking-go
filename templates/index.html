@@ -26,6 +26,7 @@
 </head>
 
 <body>
+  <a href="/calendar">Go to calendar</a>
   <h1>Rooms</h1>
   <div id="rooms">
     {{ block "rooms" . }}
@@ -97,13 +98,13 @@
         </div>
         <div class="form-field">
           <label>Select Start</label>
-          <input type="date" name="startDate" required />
-          <input type="time" name="startTime" required />
+          <input type="date" name="startDate" required value="2024-01-01" />
+          <input type="time" name="startTime" required value="08:00" />
         </div>
         <div class="form-field">
           <label>Select end</label>
-          <input type="date" name="endDate" required />
-          <input type="time" name="endTime" required />
+          <input type="date" name="endDate" required value="2024-01-02" />
+          <input type="time" name="endTime" required value="10:00" />
         </div>
         <button type="submit">Add</button>
       </div>

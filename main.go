@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"lucb31/booking-go/booking"
+	"lucb31/booking-go/calendar"
 )
 
 type RoomPageData struct {
@@ -24,6 +25,11 @@ type BookingPageData struct {
 type LoginResponse struct {
 	Jwt          string
 	ErrorMessage string
+}
+
+type CalendarData struct {
+	TimeMarkers []string
+	DayData     []calendar.CalendarDayData
 }
 
 func getBookingPageData() BookingPageData {
@@ -43,6 +49,9 @@ func main() {
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
 	r.Static("/assets", "./assets/")
+
+	// Seed test data
+	booking.InitTestBookings()
 
 	// Unauthorized routes
 	r.GET("/login", func(c *gin.Context) {
@@ -118,12 +127,7 @@ func main() {
 		{
 			// DELETE booking by ID
 			bookingEndpoints.DELETE("/:id", func(c *gin.Context) {
-				idParam, err := strconv.Atoi(c.Param("id"))
-				if err != nil {
-					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-					return
-				}
-				err = booking.RemoveBookingById(idParam)
+				err := booking.RemoveBookingByIdString(c.Param("id"))
 				if err != nil {
 					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
 					return
@@ -155,12 +159,12 @@ func main() {
 				}
 
 				// Convert date inputs into unix TT
-				startAt, err := booking.DateTimeToTimestamp(startDate, startTime)
+				startAt, err := booking.TimeFromDateAndTime(startDate, startTime)
 				if err != nil {
 					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
 					return
 				}
-				endAt, err := booking.DateTimeToTimestamp(endDate, endTime)
+				endAt, err := booking.TimeFromDateAndTime(endDate, endTime)
 				if err != nil {
 					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
 					return
@@ -174,10 +178,11 @@ func main() {
 				data := getBookingPageData()
 				c.HTML(http.StatusOK, "bookings", data)
 			})
-			bookingEndpoints.GET("/", func(c *gin.Context) {
-				c.HTML(http.StatusOK, "calendar.html", "")
-			})
 		}
+		authenticated.GET("/calendar", func(c *gin.Context) {
+			data := CalendarData{calendar.GenerateTimeMarkers(), calendar.GetCalendarDayData()}
+			c.HTML(http.StatusOK, "calendar.html", data)
+		})
 	}
 
 	r.Run("0.0.0.0:8000")
