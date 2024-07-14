@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,15 +14,31 @@ type RoomPageData struct {
 	Rooms []booking.Room
 }
 
+type BookingPageData struct {
+	Bookings []booking.Booking
+	Rooms    []booking.Room
+	Users    []booking.User
+	Error    string
+}
+
 type LoginResponse struct {
 	Jwt          string
 	ErrorMessage string
 }
 
-func main() {
-	// Setup logger
-	logger := log.Default()
+func getBookingPageData() BookingPageData {
+	return BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""}
+}
 
+func newErrBokingPageData(err error) BookingPageData {
+	logger.Print("Failed booking page data request: ", err)
+	return BookingPageData{booking.Bookings, booking.Rooms, booking.Users, err.Error()}
+}
+
+// Setup logger
+var logger = log.Default()
+
+func main() {
 	// Initialize router
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
@@ -34,7 +51,7 @@ func main() {
 	r.POST("/login", func(c *gin.Context) {
 		username := c.Request.FormValue("username")
 		password := c.Request.FormValue("password")
-		logger.Print("Received", username, password)
+		logger.Printf("Login request for user %s", username)
 
 		jwt, err := LoginRequest(username, password)
 		if err != nil {
@@ -42,8 +59,6 @@ func main() {
 			c.HTML(http.StatusUnauthorized, "login.html", LoginResponse{jwt, err.Error()})
 			return
 		}
-		logger.Print("Received", jwt, err)
-
 		c.SetCookie("Jwt-Token", jwt, 86400, "", "localhost", true, true)
 		c.Redirect(http.StatusFound, "/")
 	})
@@ -56,7 +71,7 @@ func main() {
 	authenticated.Use(AuthMiddleware())
 	{
 		authenticated.GET("/", func(c *gin.Context) {
-			data := RoomPageData{booking.Rooms}
+			data := getBookingPageData()
 			c.HTML(http.StatusOK, "index.html", data)
 		})
 		authenticated.GET("/logout", func(c *gin.Context) {
@@ -70,12 +85,12 @@ func main() {
 			roomEndpoints.DELETE("/:id", func(c *gin.Context) {
 				idParam, err := strconv.Atoi(c.Param("id"))
 				if err != nil {
-					c.HTML(http.StatusBadRequest, "", "")
+					c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
 					return
 				}
-				err = booking.RemoveById(idParam)
+				err = booking.RemoveRoomById(idParam)
 				if err != nil {
-					c.HTML(http.StatusBadRequest, "", "")
+					c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
 					return
 				}
 
@@ -86,19 +101,81 @@ func main() {
 			// ADD room with title
 			roomEndpoints.POST("/", func(c *gin.Context) {
 				title, exists := c.GetPostForm("title")
-				if !exists {
-					c.HTML(http.StatusBadRequest, "", "")
-					logger.Print("Title cannot be empty")
+				if !exists || len(title) == 0 {
+					c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(errors.New("Title cannot be empty")))
 					return
 				}
-				_, err := booking.Add(title)
+				_, err := booking.AddRoom(title)
 				if err != nil {
-					c.HTML(http.StatusBadRequest, "", "")
-					logger.Print("Unable to create room: ", err)
+					c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
 					return
 				}
 				data := RoomPageData{booking.Rooms}
 				c.HTML(http.StatusOK, "rooms", data)
+			})
+		}
+		bookingEndpoints := authenticated.Group("/bookings")
+		{
+			// DELETE booking by ID
+			bookingEndpoints.DELETE("/:id", func(c *gin.Context) {
+				idParam, err := strconv.Atoi(c.Param("id"))
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+				err = booking.RemoveBookingById(idParam)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+				data := getBookingPageData()
+				c.HTML(http.StatusOK, "bookings", data)
+			})
+
+			// ADD booking
+			bookingEndpoints.POST("/", func(c *gin.Context) {
+				// Fetch inputs
+				roomId, _ := c.GetPostForm("roomId")
+				userId, _ := c.GetPostForm("userId")
+				startDate, _ := c.GetPostForm("startDate")
+				startTime, _ := c.GetPostForm("startTime")
+				endDate, _ := c.GetPostForm("endDate")
+				endTime, _ := c.GetPostForm("endTime")
+
+				// Convert string ids to numeric
+				roomNumericId, err := strconv.Atoi(roomId)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+				userNumericId, err := strconv.Atoi(userId)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+
+				// Convert date inputs into unix TT
+				startAt, err := booking.DateTimeToTimestamp(startDate, startTime)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+				endAt, err := booking.DateTimeToTimestamp(endDate, endTime)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+
+				_, err = booking.AddBooking(roomNumericId, userNumericId, startAt, endAt)
+				if err != nil {
+					c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
+					return
+				}
+				data := getBookingPageData()
+				c.HTML(http.StatusOK, "bookings", data)
+			})
+			bookingEndpoints.GET("/", func(c *gin.Context) {
+				c.HTML(http.StatusOK, "calendar.html", "")
 			})
 		}
 	}

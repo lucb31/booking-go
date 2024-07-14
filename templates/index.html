@@ -8,6 +8,21 @@
   <script src="https://unpkg.com/htmx.org@2.0.0"
     integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
     crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", (event) => {
+      document.body.addEventListener('htmx:beforeSwap', function (evt) {
+        if (evt.detail.xhr.status === 422) {
+          // allow 422 responses to swap as we are using this as a signal that
+          // a form was submitted with bad data and want to rerender with the
+          // errors
+          //
+          // set isError to false to avoid error logging in console
+          evt.detail.shouldSwap = true;
+          evt.detail.isError = false;
+        }
+      });
+    })
+  </script>
 </head>
 
 <body>
@@ -34,8 +49,68 @@
     </form>
   </div>
   <hr />
+  <h1>Bookings</h1>
+  <div id="bookings">
+    {{ block "bookings" . }}
+    {{ if .Error }}
+    <p>Error: {{ .Error }}</p>
+    {{ end }}
+    <table>
+      <thead>
+        <tr>
+          <th>Room</th>
+          <th>User</th>
+          <th>From</th>
+          <th>To</th>
+        </tr>
+      </thead>
+      {{ range .Bookings }}
+      <tr>
+        <td> {{ .Room.Title }} </td>
+        <td> {{ .User.Name }} </td>
+        <td> {{ .StartTime }} </td>
+        <td> {{ .EndTime }} </td>
+      </tr>
+      {{ end }}
+    </table>
+    {{ end }}
+  </div>
+  <div>
+    <h2>Add booking</h2>
+    <form hx-post="/bookings" hx-target="#bookings">
+      <div class="form-wrapper">
+        <div class="form-field">
+          <label>Select room</label>
+          <select name="roomId">
+            {{ range .Rooms }}
+            <option value="{{ .Id }}">{{ .Title }}</option>
+            {{ end }}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Select user</label>
+          <select name="userId">
+            {{ range .Users }}
+            <option value="{{ .Id }}">{{ .Name }}</option>
+            {{ end }}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Select Start</label>
+          <input type="date" name="startDate" required />
+          <input type="time" name="startTime" required />
+        </div>
+        <div class="form-field">
+          <label>Select end</label>
+          <input type="date" name="endDate" required />
+          <input type="time" name="endTime" required />
+        </div>
+        <button type="submit">Add</button>
+      </div>
+    </form>
+  </div>
+  <hr />
   <a href="/logout"><button>Logout</button></a>
-
 </body>
 
 </html>
