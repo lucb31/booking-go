@@ -18,7 +18,9 @@ func InitTestBookings() {
 	layout := "2006-01-02 15:04"
 	// Add booking test data
 	minStartDate, _ := time.Parse(layout, "2024-07-08 00:00")
-	for i := 0; i < 10; i++ {
+	maxTries := 20
+	// Keep trying to add bookings until 5 have been created
+	for i := 0; i < maxTries && len(Bookings) < 5; i++ {
 		offset := int64(rand.Intn(24 * 5))
 		duration := int64(rand.Intn(25))
 		startDate := minStartDate.Add(time.Duration(time.Hour * time.Duration(offset)))
@@ -42,6 +44,11 @@ func AddBooking(roomId int, userId int, startAt time.Time, endAt time.Time) (*Bo
 	newBooking, err := NewBooking(roomId, userId, startAt, endAt)
 	if err != nil {
 		return nil, err
+	}
+	// Collision detection
+	collidingBookings := FindBookingsWithinTimeInterval(&startAt, &endAt)
+	if len(collidingBookings) > 0 {
+		return nil, fmt.Errorf("Collision with %s", collidingBookings[0].String())
 	}
 	Bookings = append(Bookings, *newBooking)
 	log.Print("Booking added", newBooking)
@@ -71,6 +78,15 @@ func filterBookings(f func(b *Booking) bool) []Booking {
 		}
 	}
 	return res
+}
+
+func findBooking(f func(b *Booking) bool) *Booking {
+	for _, b := range Bookings {
+		if f(&b) {
+			return &b
+		}
+	}
+	return nil
 }
 
 // Converts date in format "yyyy-mm-dd" & time in format "hh:mm" into unix timestamp
