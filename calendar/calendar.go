@@ -41,17 +41,13 @@ func GenerateTimeMarkers() []string {
 	return timeMarkers[:]
 }
 
-func GetCalendarDayData() []CalendarDayData {
+func GetCalendarDayData(year int, week int) []CalendarDayData {
+	dateOfFirstMonday := WeekStart(year, week)
+
 	workingDays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday}
-
-	currentTime := time.Now().AddDate(0, 0, 0)
-	currentWeekday := currentTime.Weekday()
-
-	offsetMonday := time.Monday - currentWeekday
-	dateOfFirstMonday := currentTime.AddDate(0, 0, int(offsetMonday)-7)
-
 	var dayData [5]CalendarDayData
 	for idx, workingDay := range workingDays {
+		// Abbreviate name of weekday to 3 characters
 		dayString := workingDay.String()[0:3]
 		workingTime := dateOfFirstMonday.AddDate(0, 0, idx)
 		filterStartDate := time.Date(workingTime.Year(), workingTime.Month(), workingTime.Day(), workingHourStart, 0, 0, 0, workingTime.Location())
@@ -84,4 +80,22 @@ func mapBookingToCalendarEvent(b *booking.Booking, startLimit *time.Time, endLim
 		relativeEndHour = max(1, min(numTimeMarkers, b.EndTime.Hour()-workingHourStart+1))
 	}
 	return CalendarEvent{relativeStartHour, relativeEndHour, b}
+}
+
+func WeekStart(year, week int) time.Time {
+	// Start from the middle of the year:
+	t := time.Date(year, 7, 1, 0, 0, 0, 0, time.UTC)
+
+	// Roll back to Monday:
+	if wd := t.Weekday(); wd == time.Sunday {
+		t = t.AddDate(0, 0, -6)
+	} else {
+		t = t.AddDate(0, 0, -int(wd)+1)
+	}
+
+	// Difference in weeks:
+	_, w := t.ISOWeek()
+	t = t.AddDate(0, 0, (week-w)*7)
+
+	return t
 }

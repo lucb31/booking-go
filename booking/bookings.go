@@ -15,14 +15,14 @@ var Bookings []Booking
 
 func InitTestBookings() {
 	Bookings = nil
-	layout := "2006-01-02 15:04"
 	// Add booking test data
-	minStartDate, _ := time.Parse(layout, "2024-07-08 00:00")
-	maxTries := 20
-	// Keep trying to add bookings until 5 have been created
-	for i := 0; i < maxTries && len(Bookings) < 5; i++ {
-		offset := int64(rand.Intn(24 * 5))
-		duration := int64(rand.Intn(25))
+	minStartDate := time.Date(time.Now().Year(), 0, 0, 0, 0, 0, 0, time.Now().Location())
+	nrBookingsToInit := 50
+	maxTries := nrBookingsToInit * 3
+	// Keep trying to add bookings until enough have been created or max tries reached
+	for i := 0; i < maxTries && len(Bookings) < nrBookingsToInit; i++ {
+		offset := int64(rand.Intn(24 * 365))
+		duration := int64(rand.Intn(24 * 3))
 		startDate := minStartDate.Add(time.Duration(time.Hour * time.Duration(offset)))
 		endDate := startDate.Add(time.Duration(time.Hour * time.Duration(duration)))
 		AddBooking(1, 1, startDate, endDate)

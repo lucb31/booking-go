@@ -1,5 +1,4 @@
 # Next steps
-- Add navigation to calender (next, prev, select week)
 - Add form / popup to add booking from calendar
 - Display booking room (color code?)
 - Filter calendar 

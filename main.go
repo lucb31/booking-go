@@ -5,10 +5,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"lucb31/booking-go/booking"
 	"lucb31/booking-go/calendar"
+
+	"github.com/gin-gonic/gin"
 )
 
 type RoomPageData struct {
@@ -30,6 +32,9 @@ type LoginResponse struct {
 type CalendarData struct {
 	TimeMarkers []string
 	DayData     []calendar.CalendarDayData
+	Cw          int
+	NextCw      int
+	PrevCw      int
 }
 
 func getBookingPageData() BookingPageData {
@@ -180,7 +185,22 @@ func main() {
 			})
 		}
 		authenticated.GET("/calendar", func(c *gin.Context) {
-			data := CalendarData{calendar.GenerateTimeMarkers(), calendar.GetCalendarDayData()}
+			week, err := strconv.Atoi(c.Query("week"))
+			// Fallback to current week if invalid or none provided
+			if err != nil || week < 1 || week > 53 {
+				_, week = time.Now().ISOWeek()
+			}
+			year, err := strconv.Atoi(c.Query("year"))
+			// Fallback to current year if invalid or none provided
+			if err != nil || year < 1 || year > 1000 {
+				year, _ = time.Now().ISOWeek()
+			}
+			// Disable next week button if last week reached
+			nextWeek := week + 1
+			if nextWeek > 53 {
+				nextWeek = 0
+			}
+			data := CalendarData{calendar.GenerateTimeMarkers(), calendar.GetCalendarDayData(year, week), week, nextWeek, week - 1}
 			c.HTML(http.StatusOK, "calendar.html", data)
 		})
 	}

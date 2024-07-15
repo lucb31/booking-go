@@ -155,6 +155,15 @@
 </head>
 
 <body>
+  <form hx-get="/calendar" hx-target="body">
+    <div style="display: flex; flex-direction: row; justify-content: space-around;">
+      <button type="submit" name="week" value="{{ .PrevCw }}" {{ if not .PrevCw }} disabled="true" {{ end
+        }}>Prev</button>
+      Showing CW {{ .Cw }}
+      <button type="submit" name="week" value="{{ .NextCw }}" {{ if not .NextCw }} disabled="true" {{ end
+        }}>Next</button>
+    </div>
+  </form>
   <div class="calendar">
     <div class="timeline">
       <div class="spacer"></div>
