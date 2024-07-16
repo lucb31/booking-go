@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -37,15 +36,6 @@ type CalendarData struct {
 	PrevCw      int
 }
 
-func getBookingPageData() BookingPageData {
-	return BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""}
-}
-
-func newErrBokingPageData(err error) BookingPageData {
-	logger.Print("Failed booking page data request: ", err)
-	return BookingPageData{booking.Bookings, booking.Rooms, booking.Users, err.Error()}
-}
-
 // Setup logger
 var logger = log.Default()
 
@@ -69,8 +59,7 @@ func main() {
 	authenticated.Use(AuthMiddleware())
 	{
 		authenticated.GET("/", func(c *gin.Context) {
-			data := getBookingPageData()
-			c.HTML(http.StatusOK, "index.html", data)
+			c.HTML(http.StatusOK, "index.html", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
 		})
 		authenticated.GET("/logout", func(c *gin.Context) {
 			c.SetCookie("Jwt-Token", "", 0, "", "localhost", true, true)
@@ -84,8 +73,8 @@ func main() {
 		}
 		bookingEndpoints := authenticated.Group("/bookings")
 		{
-			bookingEndpoints.POST("/", handleAddBookingRequest)
-			bookingEndpoints.DELETE("/:id", handleDeleteBookingRequest)
+			bookingEndpoints.POST("/", makeBookingRequest(handleAddBookingRequest))
+			bookingEndpoints.DELETE("/:id", makeBookingRequest(handleDeleteBookingRequest))
 		}
 		authenticated.GET("/calendar", handleGetCalendarRequest)
 	}
@@ -108,7 +97,18 @@ func handleLoginRequest(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-func handleAddBookingRequest(c *gin.Context) {
+// Middleware for booking request errors
+func makeBookingRequest(h func(c *gin.Context) error) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		err := h(c)
+		if err != nil {
+			c.HTML(http.StatusUnprocessableEntity, "bookings", BookingPageData{Error: err.Error()})
+			return
+		}
+	}
+}
+
+func handleAddBookingRequest(c *gin.Context) error {
 	// Fetch inputs
 	roomId, _ := c.GetPostForm("roomId")
 	userId, _ := c.GetPostForm("userId")
@@ -120,55 +120,49 @@ func handleAddBookingRequest(c *gin.Context) {
 	// Convert string ids to numeric
 	roomNumericId, err := strconv.Atoi(roomId)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
 	userNumericId, err := strconv.Atoi(userId)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
 
 	// Convert date inputs into unix TT
 	startAt, err := booking.TimeFromDateAndTime(startDate, startTime)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
 	endAt, err := booking.TimeFromDateAndTime(endDate, endTime)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
 
 	_, err = booking.AddBooking(roomNumericId, userNumericId, startAt, endAt)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
-	data := getBookingPageData()
-	c.HTML(http.StatusOK, "bookings", data)
+	c.HTML(http.StatusOK, "bookings", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+	return nil
 }
 
-func handleDeleteBookingRequest(c *gin.Context) {
+func handleDeleteBookingRequest(c *gin.Context) error {
 	err := booking.RemoveBookingByIdString(c.Param("id"))
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "bookings", newErrBokingPageData(err))
-		return
+		return err
 	}
-	data := getBookingPageData()
-	c.HTML(http.StatusOK, "bookings", data)
+	c.HTML(http.StatusOK, "bookings", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+	return nil
 }
 
 func handleDeleteRoomRequest(c *gin.Context) {
 	idParam, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
 	err = booking.RemoveRoomById(idParam)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
 
@@ -179,12 +173,12 @@ func handleDeleteRoomRequest(c *gin.Context) {
 func handleAddRoomRequest(c *gin.Context) {
 	title, exists := c.GetPostForm("title")
 	if !exists || len(title) == 0 {
-		c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(errors.New("Title cannot be empty")))
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: "Title cannot be empty"})
 		return
 	}
 	_, err := booking.AddRoom(title)
 	if err != nil {
-		c.HTML(http.StatusUnprocessableEntity, "rooms", newErrBokingPageData(err))
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
 	data := RoomPageData{booking.Rooms}
