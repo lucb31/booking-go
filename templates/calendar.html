@@ -265,6 +265,7 @@
 </head>
 
 <body>
+  <!-- <form hx-get="/calendar" hx-trigger="calendar-update from:body"> -->
   <form hx-get="/calendar">
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
       <button type="submit" name="week" value="{{ .PrevCw }}" {{ if not .PrevCw }} disabled="true" {{ end

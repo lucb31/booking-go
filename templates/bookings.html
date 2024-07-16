@@ -3,11 +3,14 @@
   <div class="modal-underlay" _="on click trigger closeModal"></div>
   <div class="modal-content">
     <h1>Edit Booking</h1>
+    {{ block "booking-modal-form" . }}
     <form hx-patch="/bookings/{{ .Booking.Id }}">
+      {{ if .Error }} <p class="error">{{ .Error }}</p> {{ end }}
       <label> Title </label>
       <input name="title" value="{{ .Booking.Title }}" />
       <button type="submit">Save</button>
     </form>
+    {{ end }}
     <button class="btn danger" _="on click trigger closeModal">Close</button>
   </div>
 </div>

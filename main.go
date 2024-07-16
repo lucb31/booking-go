@@ -25,6 +25,11 @@ type BookingPageData struct {
 	Error    string
 }
 
+type BookingDetailData struct {
+	Booking booking.Booking
+	Error   string
+}
+
 type LoginResponse struct {
 	Jwt          string
 	ErrorMessage string
@@ -78,6 +83,7 @@ func main() {
 			bookingEndpoints.POST("/", makeBookingRequest(handleAddBookingRequest))
 			bookingEndpoints.GET("/:id", makeBookingRequest(handleEditBookingRequest))
 			bookingEndpoints.DELETE("/:id", makeBookingRequest(handleDeleteBookingRequest))
+			bookingEndpoints.PATCH("/:id", makeBookingModalRequest(handleUpdateBookingRequest))
 		}
 		authenticated.GET("/calendar", handleGetCalendarRequest)
 	}
@@ -106,6 +112,17 @@ func makeBookingRequest(h func(c *gin.Context) error) func(c *gin.Context) {
 		err := h(c)
 		if err != nil {
 			c.HTML(http.StatusUnprocessableEntity, "bookings", BookingPageData{Error: err.Error()})
+			return
+		}
+	}
+}
+
+// Middleware for booking-modal request errors
+func makeBookingModalRequest(h func(c *gin.Context) error) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		err := h(c)
+		if err != nil {
+			c.HTML(http.StatusUnprocessableEntity, "booking-modal", BookingDetailData{Error: err.Error()})
 			return
 		}
 	}
@@ -163,9 +180,21 @@ func handleEditBookingRequest(c *gin.Context) error {
 	if record == nil {
 		return errors.New(fmt.Sprintf("Could not find booking for id %s", idParam))
 	}
-	// TOdo
-	data := struct{ Booking booking.Booking }{Booking: *record}
-	c.HTML(http.StatusOK, "booking-modal", data)
+	c.HTML(http.StatusOK, "booking-modal", BookingDetailData{Booking: *record})
+	return nil
+}
+
+func handleUpdateBookingRequest(c *gin.Context) error {
+	idParam := c.Param("id")
+	titleParam := c.Request.FormValue("title")
+	record := booking.FindBookingByIdString(idParam)
+	if record == nil {
+		return errors.New(fmt.Sprintf("Could not find booking for id %s", idParam))
+	}
+	record.Title = titleParam
+	// Todo Seems to be triggering update twice. Need to investigate
+	c.Header("HX-Trigger", "calendar-update")
+	c.HTML(http.StatusOK, "booking-modal-form", BookingDetailData{Booking: *record})
 	return nil
 }
 
