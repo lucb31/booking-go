@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -74,6 +76,7 @@ func main() {
 		bookingEndpoints := authenticated.Group("/bookings")
 		{
 			bookingEndpoints.POST("/", makeBookingRequest(handleAddBookingRequest))
+			bookingEndpoints.GET("/:id", makeBookingRequest(handleEditBookingRequest))
 			bookingEndpoints.DELETE("/:id", makeBookingRequest(handleDeleteBookingRequest))
 		}
 		authenticated.GET("/calendar", handleGetCalendarRequest)
@@ -151,6 +154,18 @@ func handleDeleteBookingRequest(c *gin.Context) error {
 		return err
 	}
 	c.HTML(http.StatusOK, "bookings", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+	return nil
+}
+
+func handleEditBookingRequest(c *gin.Context) error {
+	idParam := c.Param("id")
+	record := booking.FindBookingByIdString(idParam)
+	if record == nil {
+		return errors.New(fmt.Sprintf("Could not find booking for id %s", idParam))
+	}
+	// TOdo
+	data := struct{ Booking booking.Booking }{Booking: *record}
+	c.HTML(http.StatusOK, "booking-modal", data)
 	return nil
 }
 

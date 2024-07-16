@@ -30,9 +30,8 @@ func InitTestBookings() {
 }
 
 func RemoveBookingByIdString(idString string) error {
-	id, err := uuid.Parse(idString)
-	idx := slices.IndexFunc(Bookings, func(booking Booking) bool { return booking.Id == id })
-	if idx == -1 || err != nil {
+	idx := findBookingIdxByIdString(idString)
+	if idx == -1 {
 		return errors.New("Unknown booking id")
 	}
 	// Remove element by index
@@ -70,6 +69,14 @@ func FindBookingsWithinTimeInterval(startAt *time.Time, endAt *time.Time) []Book
 	})
 }
 
+func FindBookingByIdString(idString string) *Booking {
+	idx := findBookingIdxByIdString(idString)
+	if idx == -1 {
+		return nil
+	}
+	return &Bookings[idx]
+}
+
 func filterBookings(f func(b *Booking) bool) []Booking {
 	res := make([]Booking, 0)
 	for _, b := range Bookings {
@@ -80,13 +87,12 @@ func filterBookings(f func(b *Booking) bool) []Booking {
 	return res
 }
 
-func findBooking(f func(b *Booking) bool) *Booking {
-	for _, b := range Bookings {
-		if f(&b) {
-			return &b
-		}
+func findBookingIdxByIdString(idString string) int {
+	id, err := uuid.Parse(idString)
+	if err != nil {
+		return -1
 	}
-	return nil
+	return slices.IndexFunc(Bookings, func(booking Booking) bool { return booking.Id == id })
 }
 
 // Converts date in format "yyyy-mm-dd" & time in format "hh:mm" into unix timestamp

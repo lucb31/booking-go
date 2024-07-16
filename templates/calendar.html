@@ -8,6 +8,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.0"
     integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
     crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
   <style>
     :root {
@@ -101,6 +102,7 @@
       padding: 0.5rem;
       margin: 0 0.5rem;
       background: white;
+      cursor: pointer;
 
       // Overflowing
       overflow: hidden;
@@ -150,12 +152,120 @@
       font-size: 3rem;
       font-weight: 100;
     }
+
+    /***** MODAL DIALOG ****/
+    #modal {
+      /* Underlay covers entire screen. */
+      position: fixed;
+      top: 0px;
+      bottom: 0px;
+      left: 0px;
+      right: 0px;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+
+      /* Flexbox centers the .modal-content vertically and horizontally */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      /* Animate when opening */
+      animation-name: fadeIn;
+      animation-duration: 150ms;
+      animation-timing-function: ease;
+    }
+
+    #modal>.modal-underlay {
+      /* underlay takes up the entire viewport. This is only
+	required if you want to click to dismiss the popup */
+      position: absolute;
+      z-index: -1;
+      top: 0px;
+      bottom: 0px;
+      left: 0px;
+      right: 0px;
+    }
+
+    #modal>.modal-content {
+      /* Position visible dialog near the top of the window */
+      margin-top: 10vh;
+
+      /* Sizing for visible dialog */
+      width: 80%;
+      max-width: 600px;
+
+      /* Display properties for visible dialog*/
+      border: solid 1px #999;
+      border-radius: 8px;
+      box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.3);
+      background-color: white;
+      padding: 20px;
+
+      /* Animate when opening */
+      animation-name: zoomIn;
+      animation-duration: 150ms;
+      animation-timing-function: ease;
+    }
+
+    #modal.closing {
+      /* Animate when closing */
+      animation-name: fadeOut;
+      animation-duration: 150ms;
+      animation-timing-function: ease;
+    }
+
+    #modal.closing>.modal-content {
+      /* Animate when closing */
+      animation-name: zoomOut;
+      animation-duration: 150ms;
+      animation-timing-function: ease;
+    }
+
+    @keyframes fadeIn {
+      0% {
+        opacity: 0;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeOut {
+      0% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes zoomIn {
+      0% {
+        transform: scale(0.9);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @keyframes zoomOut {
+      0% {
+        transform: scale(1);
+      }
+
+      100% {
+        transform: scale(0.9);
+      }
+    }
   </style>
 
 </head>
 
 <body>
-  <form hx-get="/calendar" hx-target="body">
+  <form hx-get="/calendar">
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
       <button type="submit" name="week" value="{{ .PrevCw }}" {{ if not .PrevCw }} disabled="true" {{ end
         }}>Prev</button>
@@ -163,34 +273,35 @@
       <button type="submit" name="week" value="{{ .NextCw }}" {{ if not .NextCw }} disabled="true" {{ end
         }}>Next</button>
     </div>
-  </form>
-  <div class="calendar">
-    <div class="timeline">
-      <div class="spacer"></div>
-      {{ range .TimeMarkers }}
-      <div class="time-marker">{{ . }}</div>
-      {{ end }}
-    </div>
-    <div class="days">
-      {{ range .DayData }}
-      <div class="day">
-        <div class="date">
-          <p class="date-num">{{ .DayNum }}</p>
-          <p class="date-day">{{ .DayString }}</p>
-        </div>
-        <div class="events">
-          {{ range .Events }}
-
-          <div class="event securities" style="grid-row-start: {{ .StartHour }}; grid-row-end: {{ .EndHour }}">
-            <p class="title">{{ .Booking.Title }}</p>
-            <p class="time">{{ .Booking.Description }}</p>
-          </div>
-          {{ end }}
-        </div>
+    <div class="calendar">
+      <div class="timeline">
+        <div class="spacer"></div>
+        {{ range .TimeMarkers }}
+        <div class="time-marker">{{ . }}</div>
+        {{ end }}
       </div>
-      {{ end }}
+      <div class="days">
+        {{ range .DayData }}
+        <div class="day">
+          <div class="date">
+            <p class="date-num">{{ .DayNum }}</p>
+            <p class="date-day">{{ .DayString }}</p>
+          </div>
+          <div class="events">
+            {{ range .Events }}
+
+            <div class="event securities" style="grid-row-start: {{ .StartHour }}; grid-row-end: {{ .EndHour }}"
+              hx-get="/bookings/{{ .Booking.Id }}" hx-target="body" hx-swap="beforeend">
+              <p class=" title">{{ .Booking.Title }}</p>
+              <p class="time">{{ .Booking.Description }}</p>
+            </div>
+            {{ end }}
+          </div>
+        </div>
+        {{ end }}
+      </div>
     </div>
-  </div>
+  </form>
 </body>
 
 </html>
