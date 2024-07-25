@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,6 +10,8 @@ import (
 	"lucb31/booking-go/calendar"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type RoomPageData struct {
@@ -43,8 +43,10 @@ type CalendarData struct {
 	PrevCw      int
 }
 
-// Setup logger
 var logger = log.Default()
+var bookingRepo booking.BookingRepository
+var userRepo booking.UserRepository
+var roomRepo booking.RoomsRepository
 
 func main() {
 	// Initialize router
@@ -52,8 +54,34 @@ func main() {
 	r.LoadHTMLGlob("templates/*")
 	r.Static("/assets", "./assets/")
 
+	// Initialize DB
+	db, err := sqlx.Connect("sqlite3", "file:test.db")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// Init repos
+	userRepo = booking.NewUserRepositorySQLite(db)
+	if err := userRepo.Migrate(); err != nil {
+		log.Fatalln(err)
+	}
+	roomRepo = booking.NewRoomsRepositorySQLite(db)
+	if err := roomRepo.Migrate(); err != nil {
+		log.Fatalln(err)
+	}
+	bookingRepo = booking.NewBookingRepositorySQLite(db, userRepo, roomRepo)
+	if err = bookingRepo.Migrate(); err != nil {
+		log.Fatalln(err)
+	}
 	// Seed test data
-	booking.InitTestBookings()
+	if err := userRepo.SeedTestData(); err != nil {
+		log.Fatalln(err)
+	}
+	if err := roomRepo.SeedTestData(); err != nil {
+		log.Fatalln(err)
+	}
+	if err := bookingRepo.SeedTestData(); err != nil {
+		log.Fatalln(err)
+	}
 
 	// Unauthorized routes
 	r.GET("/login", func(c *gin.Context) {
@@ -66,7 +94,13 @@ func main() {
 	authenticated.Use(AuthMiddleware())
 	{
 		authenticated.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+			data, err := getBookingPageData()
+			if err != nil {
+				logger.Panic(err)
+				c.HTML(http.StatusOK, "index.html", BookingPageData{})
+				return
+			}
+			c.HTML(http.StatusOK, "index.html", data)
 		})
 		authenticated.GET("/logout", func(c *gin.Context) {
 			c.SetCookie("Jwt-Token", "", 0, "", "localhost", true, true)
@@ -138,11 +172,11 @@ func handleAddBookingRequest(c *gin.Context) error {
 	endTime, _ := c.GetPostForm("endTime")
 
 	// Convert string ids to numeric
-	roomNumericId, err := strconv.Atoi(roomId)
+	roomNumericId, err := strconv.ParseInt(roomId, 10, 64)
 	if err != nil {
 		return err
 	}
-	userNumericId, err := strconv.Atoi(userId)
+	userNumericId, err := strconv.ParseInt(userId, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -157,39 +191,81 @@ func handleAddBookingRequest(c *gin.Context) error {
 		return err
 	}
 
-	_, err = booking.AddBooking(roomNumericId, userNumericId, startAt, endAt)
+	_, err = bookingRepo.Create(booking.Booking{Room: booking.Room{Id: roomNumericId}, User: booking.User{Id: userNumericId}, StartTime: startAt, EndTime: endAt})
 	if err != nil {
 		return err
 	}
-	c.HTML(http.StatusOK, "bookings", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+	data, err := getBookingPageData()
+	if err != nil {
+		return err
+	}
+	c.HTML(http.StatusOK, "bookings", data)
 	return nil
 }
 
 func handleDeleteBookingRequest(c *gin.Context) error {
-	err := booking.RemoveBookingByIdString(c.Param("id"))
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		return err
 	}
-	c.HTML(http.StatusOK, "bookings", BookingPageData{booking.Bookings, booking.Rooms, booking.Users, ""})
+	err = bookingRepo.Delete(id)
+	if err != nil {
+		return err
+	}
+	data, err := getBookingPageData()
+	if err != nil {
+		return err
+	}
+	c.HTML(http.StatusOK, "bookings", data)
 	return nil
 }
 
+func getBookingPageData() (BookingPageData, error) {
+	bookings, err := bookingRepo.GetAll()
+	if err != nil {
+		return BookingPageData{Error: err.Error()}, err
+	}
+	rooms, err := roomRepo.GetAll()
+	if err != nil {
+		return BookingPageData{Error: err.Error()}, err
+	}
+	users, err := userRepo.GetAll()
+	if err != nil {
+		return BookingPageData{Error: err.Error()}, err
+	}
+	return BookingPageData{pointerSliceToValueSlice(bookings), pointerSliceToValueSlice(rooms), pointerSliceToValueSlice(users), ""}, nil
+}
+
+func pointerSliceToValueSlice[t comparable](vals []*t) []t {
+	res := make([]t, len(vals))
+	for idx, val := range vals {
+		res[idx] = *val
+	}
+	return res
+}
+
 func handleEditBookingRequest(c *gin.Context) error {
-	idParam := c.Param("id")
-	record := booking.FindBookingByIdString(idParam)
-	if record == nil {
-		return errors.New(fmt.Sprintf("Could not find booking for id %s", idParam))
+	idParam, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return err
+	}
+	record, err := bookingRepo.GetById(idParam)
+	if err != nil {
+		return err
 	}
 	c.HTML(http.StatusOK, "booking-modal", BookingDetailData{Booking: *record})
 	return nil
 }
 
 func handleUpdateBookingRequest(c *gin.Context) error {
-	idParam := c.Param("id")
+	idParam, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return err
+	}
 	titleParam := c.Request.FormValue("title")
-	record := booking.FindBookingByIdString(idParam)
-	if record == nil {
-		return errors.New(fmt.Sprintf("Could not find booking for id %s", idParam))
+	record, err := bookingRepo.GetById(idParam)
+	if err != nil {
+		return err
 	}
 	record.Title = titleParam
 	// Todo Seems to be triggering update twice. Need to investigate
@@ -199,18 +275,22 @@ func handleUpdateBookingRequest(c *gin.Context) error {
 }
 
 func handleDeleteRoomRequest(c *gin.Context) {
-	idParam, err := strconv.Atoi(c.Param("id"))
+	idParam, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
-	err = booking.RemoveRoomById(idParam)
+	err = roomRepo.Delete(idParam)
 	if err != nil {
 		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
 
-	data := RoomPageData{booking.Rooms}
+	rooms, err := roomRepo.GetAll()
+	if err != nil {
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
+	}
+	data := RoomPageData{pointerSliceToValueSlice(rooms)}
 	c.HTML(http.StatusOK, "rooms", data)
 }
 
@@ -220,12 +300,16 @@ func handleAddRoomRequest(c *gin.Context) {
 		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: "Title cannot be empty"})
 		return
 	}
-	_, err := booking.AddRoom(title)
+	_, err := roomRepo.Create(booking.Room{Title: title})
 	if err != nil {
 		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
 		return
 	}
-	data := RoomPageData{booking.Rooms}
+	rooms, err := roomRepo.GetAll()
+	if err != nil {
+		c.HTML(http.StatusUnprocessableEntity, "rooms", BookingPageData{Error: err.Error()})
+	}
+	data := RoomPageData{pointerSliceToValueSlice(rooms)}
 	c.HTML(http.StatusOK, "rooms", data)
 }
 
@@ -245,6 +329,11 @@ func handleGetCalendarRequest(c *gin.Context) {
 	if nextWeek > 53 {
 		nextWeek = 0
 	}
-	data := CalendarData{calendar.GenerateTimeMarkers(), calendar.GetCalendarDayData(year, week), week, nextWeek, week - 1}
+	var service calendar.CalendarService = calendar.NewService(bookingRepo)
+	dayData, err := service.GetCalendarDayData(year, week)
+	if err != nil {
+		c.HTML(http.StatusUnprocessableEntity, "calendar.html", CalendarData{})
+	}
+	data := CalendarData{service.GenerateTimeMarkers(), dayData, week, nextWeek, week - 1}
 	c.HTML(http.StatusOK, "calendar.html", data)
 }

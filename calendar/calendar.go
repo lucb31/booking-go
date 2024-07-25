@@ -6,6 +6,19 @@ import (
 	"time"
 )
 
+type CalendarService interface {
+	GetCalendarDayData(year int, week int) ([]CalendarDayData, error)
+	GenerateTimeMarkers() []string
+}
+
+type CalendarServiceImpl struct {
+	bookingRepo booking.BookingRepository
+}
+
+func NewService(bookingRepo booking.BookingRepository) CalendarServiceImpl {
+	return CalendarServiceImpl{bookingRepo}
+}
+
 type CalendarEvent struct {
 	// Relative to workingHourStart
 	StartHour int
@@ -26,7 +39,7 @@ const numTimeMarkers = 10
 const workingHourStart = 8
 const workingHoursEnd = 17
 
-func GenerateTimeMarkers() []string {
+func (s CalendarServiceImpl) GenerateTimeMarkers() []string {
 	// Generate time markers
 	var timeMarkers [numTimeMarkers]string
 	for i := 0; i < numTimeMarkers; i++ {
@@ -41,7 +54,7 @@ func GenerateTimeMarkers() []string {
 	return timeMarkers[:]
 }
 
-func GetCalendarDayData(year int, week int) []CalendarDayData {
+func (s CalendarServiceImpl) GetCalendarDayData(year int, week int) ([]CalendarDayData, error) {
 	dateOfFirstMonday := WeekStart(year, week)
 
 	workingDays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday}
@@ -55,17 +68,20 @@ func GetCalendarDayData(year int, week int) []CalendarDayData {
 		dayNum := workingTime.Day()
 
 		// Filter bookings by calendar date
-		filteredBookings := booking.FindBookingsWithinTimeInterval(&filterStartDate, &filterEndDate)
+		filteredBookings, err := s.bookingRepo.FindWithinTimeInterval(&filterStartDate, &filterEndDate)
+		if err != nil {
+			return dayData[:], err
+		}
 
 		// Map bookings to Event data
 		events := make([]CalendarEvent, len(filteredBookings))
 		for idx, b := range filteredBookings {
-			events[idx] = mapBookingToCalendarEvent(&b, &filterStartDate, &filterEndDate)
+			events[idx] = mapBookingToCalendarEvent(b, &filterStartDate, &filterEndDate)
 		}
 		dayData[idx] = CalendarDayData{dayNum, dayString, events}
 	}
 
-	return dayData[:]
+	return dayData[:], nil
 }
 
 func mapBookingToCalendarEvent(b *booking.Booking, startLimit *time.Time, endLimit *time.Time) CalendarEvent {
